@@ -2,17 +2,24 @@
 
 namespace Plinter;
 
-class App {
-    public static function run($args) {
-        $parsed = self::parse_args($args);
-        $dir_path = $parsed[0];
-        $file_name = $parsed[1];
+function run($args){
+    if(!is_args_valid($args)){
+        // print_help
     }
 
-    private static function parse_args($args) {
-        return $args;
+    $dir_path = $args[0];
+    $file_path = $args[1];
+    $parsed = [];
+
+    foreach(glob($dir_path.'/*.*') as $file) {
+        $content = file_get_contents($file);
+        array_merge($parsed, parse($content));
     }
+
+    var_dump($parsed);
 }
+
+function is_args_valid($args) { return true; }
 
 function parse($source) {
     $tokens = token_get_all($source);
@@ -31,15 +38,12 @@ function parse($source) {
                         $last_func = $token[1];
                         $func_def = false;
                     } else {
-                        array_push($parsed[$last_func]["callee"], $token[1]);
+                        array_push($parsed[$token[1]]["callee"], $last_func );
                     }
                     break;
             }
         }
     }
-}
 
-// брать файл, через get_defined_functions или как то так, брать ключи функций, получили массив, который надо искать
-// ключ функци - просто имя, мб надо будет что то накрутить
-// парсим файлы из папки, строим хеш вида ключ_функции: [ключи, которые зовут]
-// функция А считается неиспользуемой, если у нее в массиве пусто, или у тех, кто ее зовет в массивах только А
+    return $parsed;
+}
