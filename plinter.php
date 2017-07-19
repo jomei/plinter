@@ -1,8 +1,9 @@
 <?php
 
-require_once 'lib/app.php';
+require_once('lib/app.php');
 
-use Plinter\App;
+function main($args) {
+    run([$args[1], $args[2]]);
+}
 
-App::run($argv);
-
+main($argv);

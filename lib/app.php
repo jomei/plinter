@@ -1,6 +1,5 @@
 <?php
 
-namespace Plinter;
 
 function run($args){
     if(!is_args_valid($args)){
@@ -28,16 +27,21 @@ function parse($source) {
     $last_func = null;
     foreach($tokens as $token) {
         if (is_array($token)) {
-            switch (token_name($token[0])){
+            echo "Line {$token[2]}: ", token_name($token[0]), " ('{$token[1]}')", PHP_EOL;
+            switch ($token[0]){
                 case T_FUNCTION:
                     $func_def = true;
                     break;
                 case T_STRING:
                     if($func_def){
-                        $parsed[$token[1]] = ["line" => $token[2], "callee" => []];
+                        $parsed[$token[1]] = !!$parsed[$token[1]] ? $parsed[$token[1]] : [];
+                        $parsed[$token[1]]["callee"] = !!$parsed[$token[1]]["callee"] ? $parsed[$token[1]]["callee"] : [];
+                        $parsed[$token[1]]["line"] = $token[2];
                         $last_func = $token[1];
                         $func_def = false;
                     } else {
+                        $parsed[$token[1]] = !!$parsed[$token[1]] ? $parsed[$token[1]] : [];
+                        $parsed[$token[1]]["callee"] = !!$parsed[$token[1]]["callee"] ? $parsed[$token[1]]["callee"] : [];
                         array_push($parsed[$token[1]]["callee"], $last_func );
                     }
                     break;

@@ -1,7 +1,7 @@
 <?php
 
 $file_path = "test/fixtures/foo.php";
-$content = file($file_path);
+$content = file_get_contents($file_path);
 
 $tokens = token_get_all(join("",$content));
 foreach($tokens as $token) {
