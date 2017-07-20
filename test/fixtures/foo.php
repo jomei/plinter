@@ -6,6 +6,14 @@ function foo($some_args) {
     baz($arg);
 }
 
+function unused1() {}
+function unused2() {}
+function unused3() { unused2();}
+function unused4() {
+    unused3();
+    unused2();
+}
+
 function bar() {
     1 + 1;
 }
@@ -13,4 +21,5 @@ function bar() {
 function baz($some_args) {
     foo($some_args);
 }
+
 
