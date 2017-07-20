@@ -1,5 +1,6 @@
 <?php
 
+const CACHE_DIR = '.cache';
 
 function run($args){
     if(!is_args_valid($args)){
@@ -12,17 +13,59 @@ function run($args){
     $inspected = [];
 
     foreach(glob($dir_path.'/*.*') as $file) {
-        $content = file_get_contents($file);
-        $parsed_file = parse($content);
+        $parsed_file = parse_file($file);
         if($file == $file_path) {
             $inspected = array_keys($parsed_file);
         }
         $parsed = array_merge($parsed, $parsed_file);
     }
+
     handle_result(get_unused($parsed, $inspected));
 }
 
 function is_args_valid($args) { return true; }
+
+function parse_file($file) {
+    $content = file_get_contents($file);
+    $parsed_file = load_from_cache($file, $content);
+
+    if(!$parsed_file) {
+        $parsed_file = parse($content);
+    }
+
+    save_to_cache($file, $content, $parsed_file);
+    return $parsed_file;
+}
+
+function load_from_cache($file, $file_content) {
+
+    if (!file_exists(CACHE_DIR)) {
+        mkdir(CACHE_DIR, 0772, true);
+    }
+
+    $cache_file = cache_file_name($file);
+
+    if (!file_exists($cache_file)) {
+        return null;
+    }
+
+    $cached = file($cache_file);
+    if (rtrim($cached[0]) != sha1($file_content)) {
+        unlink($cache_file);
+        return null;
+    }
+
+    return unserialize($cached[1]);
+}
+
+function save_to_cache($file, $content, $parsed) {
+    file_put_contents(cache_file_name($file), [sha1($content), PHP_EOL, serialize($parsed)]);
+}
+
+
+function cache_file_name($file) {
+    return CACHE_DIR.'/'.sha1($file);
+}
 
 function parse($source) {
     $tokens = token_get_all($source);
@@ -58,7 +101,6 @@ function parse($source) {
 
 function get_unused($parsed, $inspected) {
     $unused = [];
-    var_dump($inspected);
     foreach($inspected as $func) {
         if(is_unused($parsed, $func)){
             array_push($unused, $parsed[$func]);
@@ -77,7 +119,7 @@ function is_unused($parsed, $func) {
 
     foreach($callee as $c) {
         $c_size = count($parsed[$c]["callee"]);
-        if ( $c_size != 1 || ($c_size == 1 && $parsed[$c]["callee"][0] == $func)) {
+        if ( $c_size == 0 || ($c_size == 1 && $parsed[$c]["callee"][0] == $func)) {
             return false;
         }
     }
@@ -91,7 +133,7 @@ function handle_result($result) {
         exit(0);
     } else {
         foreach($result as $unused) {
-            echo "unused function ", $unused["func_name"], " on line:", $unused["line"], PHP_EOL;
+            echo "unused function ", $unused["func_name"], " on line: ", $unused["line"], PHP_EOL;
         }
         exit(1);
     }

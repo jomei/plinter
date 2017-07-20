@@ -9,10 +9,6 @@ function foo($some_args) {
 function unused1() {}
 function unused2() {}
 function unused3() { unused2();}
-function unused4() {
-    unused3();
-    unused2();
-}
 
 function bar() {
     1 + 1;
