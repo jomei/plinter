@@ -25,19 +25,6 @@ function run($args){
     handle_result(get_unused($parsed, $inspected));
 }
 
-function merge($all_parsed, $parsed_file){
-    foreach($parsed_file as $func => $parsed_func) {
-        if(!!$all_parsed[$func]) {
-            $all_parsed[$func]["callee"] = $parsed_func["callee"];
-            $all_parsed[$func]["is_used"] = $parsed_func["is_used"];
-        } else {
-            $all_parsed[$func] = $parsed_func;
-        }
-    }
-
-    return $all_parsed;
-}
-
 function is_args_valid($args) {
     return count($args) == 2;
 }
@@ -45,18 +32,6 @@ function is_args_valid($args) {
 function help() {
     echo "Usage:", PHP_EOL, "php plinter `source dir path` `inspected file path`", PHP_EOL;
     exit(1);
-}
-
-function get_inspected($parsed) {
-    $keys = array_keys($parsed);
-    $inspected = [];
-    foreach($keys as $key) {
-        if($parsed[$key]["func_name"]) {
-            array_push($inspected, $key);
-        }
-    }
-
-    return $inspected;
 }
 
 function parse_file($file) {
@@ -94,12 +69,37 @@ function load_from_cache($file, $file_content) {
     return unserialize($cached[1]);
 }
 
+function cache_file_name($file) {
+    return CACHE_DIR.'/'.sha1($file);
+}
+
 function save_to_cache($file, $content, $parsed) {
     file_put_contents(cache_file_name($file), [sha1($content), PHP_EOL, serialize($parsed)]);
 }
 
-function cache_file_name($file) {
-    return CACHE_DIR.'/'.sha1($file);
+function merge($all_parsed, $parsed_file){
+    foreach($parsed_file as $func => $parsed_func) {
+        if(!!$all_parsed[$func]) {
+            $all_parsed[$func]["callee"] = $parsed_func["callee"];
+            $all_parsed[$func]["is_used"] = $parsed_func["is_used"];
+        } else {
+            $all_parsed[$func] = $parsed_func;
+        }
+    }
+
+    return $all_parsed;
+}
+
+function get_inspected($parsed) {
+    $keys = array_keys($parsed);
+    $inspected = [];
+    foreach($keys as $key) {
+        if($parsed[$key]["func_name"]) {
+            array_push($inspected, $key);
+        }
+    }
+
+    return $inspected;
 }
 
 /**
@@ -143,6 +143,7 @@ function parse($source) {
                     break;
             }
         } else {
+
             if ($brackets === null) {
                 continue;
             }
