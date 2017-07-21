@@ -4,6 +4,7 @@ function foo($some_args) {
     $arg = "olololo";
     bar();
     baz($arg);
+    a();
 }
 
 function unused1() {}

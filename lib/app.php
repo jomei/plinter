@@ -4,10 +4,10 @@ const CACHE_DIR = '.cache';
 
 function run($args){
     if(!is_args_valid($args)){
-        // print_help
+        help();
     }
 
-    $dir_path = $args[0]; #todo: remove last slash
+    $dir_path = rtrim($args[0], '/');
     $file_path = $args[1];
     $parsed = [];
     $inspected = [];
@@ -15,25 +15,58 @@ function run($args){
     foreach(glob($dir_path.'/*.*') as $file) {
         $parsed_file = parse_file($file);
         if($file == $file_path) {
-            $inspected = array_keys($parsed_file);
+            $inspected = get_inspected($parsed_file);
         }
-        $parsed = array_merge($parsed, $parsed_file);
+        $parsed = merge($parsed, $parsed_file);
     }
 
     handle_result(get_unused($parsed, $inspected));
 }
 
-function is_args_valid($args) { return true; }
+function merge($all_parsed, $parsed_file){
+    foreach($parsed_file as $func => $parsed_func) {
+        if(!!$all_parsed[$func]) {
+            $all_parsed[$func]["callee"] = $parsed_func["callee"];
+            $all_parsed[$func]["calls"] = $parsed_func["calls"];
+        } else {
+            $all_parsed[$func] = $parsed_func;
+        }
+    }
+
+    return $all_parsed;
+}
+
+function is_args_valid($args) {
+    return count($args) == 2;
+}
+
+
+function help() {
+    echo "Usage:", PHP_EOL, "php plinter `source dir path` `inspected file path`", PHP_EOL;
+    exit(1);
+}
+
+function get_inspected($parsed) {
+    $keys = array_keys($parsed);
+    $inspected = [];
+    foreach($keys as $key) {
+        if($parsed[$key]["func_name"]) {
+            array_push($inspected, $key);
+        }
+    }
+
+    return $inspected;
+}
 
 function parse_file($file) {
     $content = file_get_contents($file);
     $parsed_file = load_from_cache($file, $content);
 
-    if(!$parsed_file) {
+    if(true) {
         $parsed_file = parse($content);
     }
 
-    save_to_cache($file, $content, $parsed_file);
+//    save_to_cache($file, $content, $parsed_file);
     return $parsed_file;
 }
 
@@ -50,6 +83,7 @@ function load_from_cache($file, $file_content) {
     }
 
     $cached = file($cache_file);
+
     if (rtrim($cached[0]) != sha1($file_content)) {
         unlink($cache_file);
         return null;
@@ -79,24 +113,38 @@ function parse($source) {
                     $func_def = true;
                     break;
                 case T_STRING:
+                    $func_name = $token[1];
+                    $func = new_function($parsed, $func_name);
+
                     if($func_def){
-                        $parsed[$token[1]] = !!$parsed[$token[1]] ? $parsed[$token[1]] : [];
-                        $parsed[$token[1]]["callee"] = !!$parsed[$token[1]]["callee"] ? $parsed[$token[1]]["callee"] : [];
-                        $parsed[$token[1]]["line"] = $token[2];
-                        $parsed[$token[1]]["func_name"] = $token[1];
-                        $last_func = $token[1];
+                        $func["line"] = $token[2];
+                        $func["func_name"] = $func_name;
+                        $last_func = $func_name;
                         $func_def = false;
                     } else {
-                        $parsed[$token[1]] = !!$parsed[$token[1]] ? $parsed[$token[1]] : [];
-                        $parsed[$token[1]]["callee"] = !!$parsed[$token[1]]["callee"] ? $parsed[$token[1]]["callee"] : [];
-                        array_push($parsed[$token[1]]["callee"], $last_func );
+                        array_push($func["callee"], $last_func );
+                        array_push($func["calls"], $func_name );
                     }
+                    $parsed[$func_name] = $func;
                     break;
             }
         }
     }
 
     return $parsed;
+}
+
+function new_function($parsed, $func_name) {
+    $func = [];
+
+    if($parsed[$func_name]) {
+        return $parsed[$func_name];
+    }
+
+    $func["callee"] = [];
+    $func["calls"] = [];
+
+    return $func;
 }
 
 function get_unused($parsed, $inspected) {
@@ -110,16 +158,26 @@ function get_unused($parsed, $inspected) {
     return $unused;
 }
 
-function is_unused($parsed, $func) {
+function is_unused($parsed, $func, $first = null) {
     $callee = $parsed[$func]["callee"];
+
+    if ($func == $first) {
+        return true;
+    }
+
+    if ($first == null) {
+        $first = $func;
+    }
 
     if (empty($callee)) {
         return true;
     }
 
     foreach($callee as $c) {
+
         $c_size = count($parsed[$c]["callee"]);
-        if ( $c_size == 0 || ($c_size == 1 && $parsed[$c]["callee"][0] == $func)) {
+
+        if ( $c_size == 0 || $c_size == 1 && ($parsed[$c]["callee"][0] == $func) || is_unused($parsed, $c, $first)) {
             return false;
         }
     }
@@ -128,6 +186,7 @@ function is_unused($parsed, $func) {
 }
 
 function handle_result($result) {
+//    var_dump($result);
     if (empty($result)) {
         echo "No offences found", PHP_EOL;
         exit(0);
