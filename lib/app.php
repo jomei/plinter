@@ -102,6 +102,14 @@ function cache_file_name($file) {
     return CACHE_DIR.'/'.sha1($file);
 }
 
+/**
+ * Идея: разобрать исходник в обьект вида {function_id: {callee:, line:, func_name:, is_used}}, где
+ * function_id - идентификатор функции, в данный момент тоже самое что и func_name
+ * callee - массив id функций, которые зовут текущую
+ * line - строка, где определяется текущая функция
+ * func_name - имя функции
+ * is_used - зовется ли функция в глобальной области
+ */
 function parse($source) {
     $tokens = token_get_all($source);
     $parsed = [];
@@ -151,7 +159,6 @@ function parse($source) {
                 }
                 continue ;
             }
-
         }
     }
 
@@ -182,6 +189,12 @@ function get_unused($parsed, $inspected) {
     return $unused;
 }
 
+/**
+ * Считаем функцию неиспользуемой если она
+ * не зовется в глобале, либо
+ * ее никто не зовет, либо
+ * ее зовет хотя бы одна используемая функция
+ */
 function is_unused($parsed, $func) {
     $current = $parsed[$func];
 
@@ -194,12 +207,12 @@ function is_unused($parsed, $func) {
     }
 
     foreach($current["callee"] as $c) {
-        if(is_unused($parsed, $c)) {
-            return true;
+        if(!is_unused($parsed, $c)) {
+            return false;
         }
     }
 
-    return false;
+    return true;
 }
 
 function handle_result($result) {
