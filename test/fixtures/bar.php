@@ -1,14 +1,8 @@
 <?php
 
-function bar() {
-    1 + 1;
+function baz($some_args) {
+    foo($some_args);
 }
 
-function unused4() {
-    unused3();
-    unused2();
-}
 
-function a(){b();}
-function b(){c();}
-function c(){a();}
+function unused2() {}

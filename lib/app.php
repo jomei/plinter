@@ -1,6 +1,8 @@
 <?php
 
 const CACHE_DIR = '.cache';
+const OPEN_BRACKETS = ["{"];
+const CLOSE_BRACKETS = ["}"];
 
 function run($args){
     if(!is_args_valid($args)){
@@ -27,7 +29,7 @@ function merge($all_parsed, $parsed_file){
     foreach($parsed_file as $func => $parsed_func) {
         if(!!$all_parsed[$func]) {
             $all_parsed[$func]["callee"] = $parsed_func["callee"];
-            $all_parsed[$func]["calls"] = $parsed_func["calls"];
+            $all_parsed[$func]["is_used"] = $parsed_func["is_used"];
         } else {
             $all_parsed[$func] = $parsed_func;
         }
@@ -39,7 +41,6 @@ function merge($all_parsed, $parsed_file){
 function is_args_valid($args) {
     return count($args) == 2;
 }
-
 
 function help() {
     echo "Usage:", PHP_EOL, "php plinter `source dir path` `inspected file path`", PHP_EOL;
@@ -62,11 +63,12 @@ function parse_file($file) {
     $content = file_get_contents($file);
     $parsed_file = load_from_cache($file, $content);
 
-    if(true) {
+    if(!$parsed_file) {
         $parsed_file = parse($content);
     }
 
-//    save_to_cache($file, $content, $parsed_file);
+    save_to_cache($file, $content, $parsed_file);
+
     return $parsed_file;
 }
 
@@ -96,7 +98,6 @@ function save_to_cache($file, $content, $parsed) {
     file_put_contents(cache_file_name($file), [sha1($content), PHP_EOL, serialize($parsed)]);
 }
 
-
 function cache_file_name($file) {
     return CACHE_DIR.'/'.sha1($file);
 }
@@ -106,15 +107,17 @@ function parse($source) {
     $parsed = [];
     $func_def = false;
     $last_func = null;
+    $brackets = null;
     foreach($tokens as $token) {
         if (is_array($token)) {
             switch ($token[0]){
                 case T_FUNCTION:
                     $func_def = true;
+                    $brackets = [];
                     break;
                 case T_STRING:
                     $func_name = $token[1];
-                    $func = new_function($parsed, $func_name);
+                    $func = get_function($parsed, $func_name);
 
                     if($func_def){
                         $func["line"] = $token[2];
@@ -122,19 +125,40 @@ function parse($source) {
                         $last_func = $func_name;
                         $func_def = false;
                     } else {
-                        array_push($func["callee"], $last_func );
-                        array_push($func["calls"], $func_name );
+                        if ($brackets) {
+                            array_push($func["callee"], $last_func );
+                        } else {
+                            $func["is_used"] = true;
+                        }
                     }
                     $parsed[$func_name] = $func;
                     break;
             }
+        } else {
+            if ($brackets === null) {
+                continue;
+            }
+
+            if(in_array($token, CLOSE_BRACKETS)) {
+                array_pop($brackets);
+                continue ;
+            }
+
+            if(in_array($token, OPEN_BRACKETS)) {
+                array_push($brackets, $token);
+                if (empty($brackets)) {
+                    $brackets = null;
+                }
+                continue ;
+            }
+
         }
     }
 
     return $parsed;
 }
 
-function new_function($parsed, $func_name) {
+function get_function($parsed, $func_name) {
     $func = [];
 
     if($parsed[$func_name]) {
@@ -142,7 +166,7 @@ function new_function($parsed, $func_name) {
     }
 
     $func["callee"] = [];
-    $func["calls"] = [];
+    $func["is_used"] = false;
 
     return $func;
 }
@@ -158,35 +182,27 @@ function get_unused($parsed, $inspected) {
     return $unused;
 }
 
-function is_unused($parsed, $func, $first = null) {
-    $callee = $parsed[$func]["callee"];
+function is_unused($parsed, $func) {
+    $current = $parsed[$func];
 
-    if ($func == $first) {
+    if($current["is_used"]) {
+        return false;
+    }
+
+    if (empty($current["callee"])) {
         return true;
     }
 
-    if ($first == null) {
-        $first = $func;
-    }
-
-    if (empty($callee)) {
-        return true;
-    }
-
-    foreach($callee as $c) {
-
-        $c_size = count($parsed[$c]["callee"]);
-
-        if ( $c_size == 0 || $c_size == 1 && ($parsed[$c]["callee"][0] == $func) || is_unused($parsed, $c, $first)) {
-            return false;
+    foreach($current["callee"] as $c) {
+        if(is_unused($parsed, $c)) {
+            return true;
         }
     }
 
-    return true;
+    return false;
 }
 
 function handle_result($result) {
-//    var_dump($result);
     if (empty($result)) {
         echo "No offences found", PHP_EOL;
         exit(0);
