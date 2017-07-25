@@ -26,7 +26,7 @@ function run($args){
 }
 
 function is_args_valid($args) {
-    return count($args) == 2;
+    return count($args) == 2 && $args[0] && $args[1];
 }
 
 function help() {
